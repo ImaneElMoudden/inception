@@ -1,0 +1,159 @@
+# #
+# services
+# #
+
+services:
+  # mariadb
+  mariadb:
+    image: mariadb
+    build: requirements/mariadb
+    container_name: mariadb
+    networks:
+      - inception_network
+    restart: always
+    volumes:
+      - mariadb_volume:/var/lib/mysql
+    secrets:
+      - database_passwd
+      - root_passwd
+    env_file:
+      - .env
+  
+  # wordpress
+  wordpress:
+    image: wordpress
+    build: requirements/wordpress
+    container_name: wordpress
+    networks:
+      - inception_network
+    restart: always
+    volumes:
+      - wordpress_volume:/var/www/html
+    secrets:
+      - database_passwd
+      - wp_admin_passwd
+      - wp_editor_passwd
+    env_file:
+      - .env
+    depends_on:
+      - mariadb
+      - redis
+
+  # nginx
+  nginx:
+    image: nginx
+    build: requirements/nginx
+    container_name: nginx
+    networks:
+      - inception_network
+    restart: always
+    volumes:
+      - wordpress_volume:/var/www/html
+      - ./requirements/nginx/logs:/var/log/nginx # goaccess
+    secrets:
+      - nginx_key
+      - nginx_crt
+    ports:
+     - 443:443 # https
+     - 500:500 # adminer
+     - 600:600 # static site
+     - 700:700 # goaccess
+    depends_on:
+      - wordpress
+
+  # redis 
+  redis:
+    image: redis
+    build: requirements/bonus/redis
+    container_name: redis
+    networks:
+      - inception_network
+    restart: always
+
+  # adminer
+  adminer:
+    image: adminer
+    build: requirements/bonus/adminer
+    container_name: adminer
+    networks:
+      - inception_network
+    restart: always
+    depends_on:
+      - mariadb
+
+  # ftp
+  ftp:
+    image: ftp
+    build: requirements/bonus/ftp
+    container_name: ftp
+    networks:
+      - inception_network
+    restart: always
+    volumes:
+      - wordpress_volume:/var/www/html
+    ports:
+      - 21:21
+      - 21100-21110:21100-21110
+    secrets:
+      - ftp_passwd
+    env_file:
+      - .env
+
+  # website
+  website:
+    image: website
+    build: requirements/bonus/website
+    container_name: website
+    networks:
+      - inception_network
+    restart: always
+
+  # service
+  service:
+    image: service
+    build: requirements/bonus/service
+    container_name: service
+    networks:
+      - inception_network
+    restart: always
+    volumes:
+      - ./requirements/nginx/logs:/var/log/nginx:ro
+      - wordpress_volume:/var/www/html
+    env_file:
+      - .env
+
+# #
+# networks
+# #
+networks:
+  inception_network:
+    driver: bridge
+
+# #
+# volumes
+# #
+volumes:
+  mariadb_volume:
+    driver: local
+
+  wordpress_volume:
+    driver: local
+
+# #
+# secrets
+# #
+secrets:
+  database_passwd:
+    file: ../secrets/database_passwd.txt
+  root_passwd:
+    file: ../secrets/root_passwd.txt
+  wp_admin_passwd:
+    file: ../secrets/wp_admin_passwd.txt
+  wp_editor_passwd:
+    file: ../secrets/wp_editor_passwd.txt
+  nginx_key:
+    file: ../secrets/nginx_key.txt
+  nginx_crt:
+    file: ../secrets/nginx_crt.txt
+  ftp_passwd:
+    file: ../secrets/ftp_passwd.txt
